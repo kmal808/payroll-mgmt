@@ -1,8 +1,13 @@
 import axios from 'axios';
 import { PayrollWeek } from '../types/payroll';
 
+// Remove /api from the base URL since we'll add it in the routes
+const baseURL = import.meta.env.VITE_API_URL.endsWith('/api')
+  ? import.meta.env.VITE_API_URL
+  : `${import.meta.env.VITE_API_URL}/api`;
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL,
   withCredentials: true
 });
 
