@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { pool } from '../db.js';
 import { z } from 'zod';
+import { config } from '../config.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -27,6 +28,16 @@ router.post('/register', async (req, res, next) => {
   try {
     const { email, password, name } = registerSchema.parse(req.body);
     
+    // Check if user already exists
+    const existingUser = await pool.query(
+      'SELECT id FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res.status(400).json({ error: 'User already exists' });
+    }
+    
     const hashedPassword = await bcrypt.hash(password, 10);
     
     const result = await pool.query(
@@ -42,6 +53,7 @@ router.post('/register', async (req, res, next) => {
 
 router.post('/login', async (req, res, next) => {
   try {
+    console.log('Login attempt:', req.body); // Debug log
     const { email, password } = loginSchema.parse(req.body);
     
     const result = await pool.query(
@@ -57,12 +69,20 @@ router.post('/login', async (req, res, next) => {
 
     const token = jwt.sign(
       { id: user.id, email: user.email },
-      process.env.JWT_SECRET,
+      config.jwtSecret,
       { expiresIn: '24h' }
     );
 
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name
+      }
+    });
   } catch (err) {
+    console.error('Login error:', err); // Debug log
     next(err);
   }
 });

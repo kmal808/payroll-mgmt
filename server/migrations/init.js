@@ -1,8 +1,8 @@
-import { pool } from '../db.js'
+import { pool } from '../db.js';
 
 async function initDb() {
-  const client = await pool.connect()
-
+  const client = await pool.connect();
+  
   try {
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -57,15 +57,15 @@ async function initDb() {
       WHERE NOT EXISTS (
         SELECT 1 FROM users WHERE email = 'admin@example.com'
       );
-    `)
-
-    console.log('Database initialized successfully')
+    `);
+    
+    console.log('Database initialized successfully');
   } catch (err) {
-    console.error('Error initializing database:', err)
-    throw err
+    console.error('Error initializing database:', err);
+    throw err;
   } finally {
-    client.release()
+    client.release();
   }
 }
 
-initDb().catch(console.error)
+initDb().catch(console.error);
