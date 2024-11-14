@@ -18,6 +18,58 @@ const registerSchema = z.object({
   name: z.string().min(2),
 })
 
+// Debug endpoint to test database connection
+router.get('/test-db', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT COUNT(*) as count FROM users')
+    const adminResult = await pool.query(
+      'SELECT id, email, name FROM users WHERE email = $1',
+      ['admin@example.com']
+    )
+
+    res.json({
+      message: 'Database connection successful',
+      userCount: result.rows[0].count,
+      adminExists: adminResult.rows.length > 0,
+      adminUser: adminResult.rows[0],
+    })
+  } catch (err) {
+    console.error('Database test error:', err)
+    res.status(500).json({
+      error: 'Database connection failed',
+      details: err.message,
+    })
+  }
+})
+
+// Debug endpoint to test login process
+router.post('/test-login', async (req, res) => {
+  try {
+    const { email, password } = req.body
+
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [
+      email,
+    ])
+
+    const user = result.rows[0]
+    const userFound = !!user
+    let passwordValid = false
+
+    if (user) {
+      passwordValid = await bcrypt.compare(password, user.password_hash)
+    }
+
+    res.json({
+      userFound,
+      passwordValid,
+      storedHash: user?.password_hash,
+    })
+  } catch (err) {
+    console.error('Login test error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // Reset admin password endpoint
 router.post('/reset-admin', async (req, res) => {
   try {
