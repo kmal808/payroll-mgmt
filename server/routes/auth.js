@@ -70,31 +70,21 @@ router.post('/test-login', async (req, res) => {
   }
 })
 
-// Reset admin password endpoint
+// Reset admin password
 router.post('/reset-admin', async (req, res) => {
   try {
     const password = 'admin123'
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    const result = await pool.query(
-      'UPDATE users SET password_hash = $1 WHERE email = $2 RETURNING id, email, name',
-      [hashedPassword, 'admin@example.com']
-    )
+    await pool.query('UPDATE users SET password_hash = $1 WHERE email = $2', [
+      hashedPassword,
+      'admin@example.com',
+    ])
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Admin user not found' })
-    }
-
-    res.json({
-      message: 'Admin password reset successfully',
-      credentials: {
-        email: 'admin@example.com',
-        password: password,
-      },
-    })
+    res.json({ message: 'Admin password reset successfully' })
   } catch (err) {
     console.error('Reset admin error:', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Failed to reset admin password' })
   }
 })
 
