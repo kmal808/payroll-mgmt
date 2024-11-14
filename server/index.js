@@ -1,13 +1,11 @@
 import express from 'express'
 import cors from 'cors'
-import dotenv from 'dotenv'
+import { config } from './config.js'
 import { pool } from './db.js'
 import authRoutes from './routes/auth.js'
 import payrollRoutes from './routes/payroll.js'
+import userRoutes from './routes/users.js'
 import { errorHandler } from './middleware/errorHandler.js'
-import { config } from './config.js'
-
-dotenv.config()
 
 const app = express()
 const port = config.port
@@ -21,8 +19,8 @@ app.use((req, res, next) => {
 // Configure CORS
 app.use(
   cors({
-    origin: '*', // Temporarily allow all origins for debugging
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    origin: config.corsOrigin,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
 )
@@ -37,14 +35,15 @@ app.get('/', (req, res) => {
 // Routes
 app.use('/auth', authRoutes)
 app.use('/payroll', payrollRoutes)
-
-// Error handling
-app.use(errorHandler)
+app.use('/users', userRoutes)
 
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy' })
 })
+
+// Error handling
+app.use(errorHandler)
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server running on port ${port}`)
