@@ -18,111 +18,52 @@ const registerSchema = z.object({
   name: z.string().min(2),
 })
 
-const changePasswordSchema = z.object({
-  currentPassword: z.string(),
-  newPassword: z.string().min(8),
-})
-
-// Test endpoint to check DB connection and user
-router.get('/test-db', async (req, res) => {
-  try {
-    // Test database connection
-    const result = await pool.query('SELECT COUNT(*) FROM users')
-
-    // Get admin user details (excluding password)
-    const adminResult = await pool.query(
-      'SELECT id, email, name FROM users WHERE email = $1',
-      ['admin@example.com']
-    )
-
-    res.json({
-      message: 'Database connection successful',
-      userCount: result.rows[0].count,
-      adminExists: adminResult.rows.length > 0,
-      adminUser: adminResult.rows[0] || null,
-    })
-  } catch (err) {
-    console.error('Database test error:', err)
-    res.status(500).json({
-      error: 'Database connection failed',
-      details: err.message,
-      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
-    })
-  }
-})
-
-// Test endpoint to verify password hash
-router.post('/test-login', async (req, res) => {
-  try {
-    const { email, password } = req.body
-
-    // Get user with password hash
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [
-      email,
-    ])
-
-    const user = result.rows[0]
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' })
-    }
-
-    // Test password comparison
-    const validPassword = await bcrypt.compare(password, user.password_hash)
-
-    res.json({
-      userFound: true,
-      passwordValid: validPassword,
-      storedHash: user.password_hash,
-    })
-  } catch (err) {
-    console.error('Test login error:', err)
-    res.status(500).json({ error: err.message })
-  }
-})
-
-// Create a new admin user with known credentials
-router.post('/create-admin', async (req, res) => {
+// Reset admin password endpoint
+router.post('/reset-admin', async (req, res) => {
   try {
     const password = 'admin123'
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    await pool.query(
-      'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET password_hash = $2',
-      ['admin@example.com', hashedPassword, 'Admin User']
+    const result = await pool.query(
+      'UPDATE users SET password_hash = $1 WHERE email = $2 RETURNING id, email, name',
+      [hashedPassword, 'admin@example.com']
     )
 
-    res.json({ message: 'Admin user created/updated successfully' })
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Admin user not found' })
+    }
+
+    res.json({
+      message: 'Admin password reset successfully',
+      credentials: {
+        email: 'admin@example.com',
+        password: password,
+      },
+    })
   } catch (err) {
-    console.error('Create admin error:', err)
+    console.error('Reset admin error:', err)
     res.status(500).json({ error: err.message })
   }
 })
 
-router.post('/login', async (req, res, next) => {
+// Login endpoint
+router.post('/login', async (req, res) => {
   try {
-    console.log('Login attempt:', { email: req.body.email }) // Log email only, not password
-
     const { email, password } = loginSchema.parse(req.body)
 
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [
       email,
     ])
 
-    console.log('User found:', result.rows.length > 0) // Log if user was found
-
     const user = result.rows[0]
 
     if (!user) {
-      console.log('No user found with email:', email)
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
     const validPassword = await bcrypt.compare(password, user.password_hash)
-    console.log('Password valid:', validPassword)
 
     if (!validPassword) {
-      console.log('Invalid password for user:', email)
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
@@ -131,8 +72,6 @@ router.post('/login', async (req, res, next) => {
       config.jwtSecret,
       { expiresIn: '24h' }
     )
-
-    console.log('Login successful for:', email)
 
     res.json({
       token,
@@ -143,12 +82,16 @@ router.post('/login', async (req, res, next) => {
       },
     })
   } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input' })
+    }
     console.error('Login error:', err)
-    next(err)
+    res.status(500).json({ error: 'Server error' })
   }
 })
 
-router.post('/register', async (req, res, next) => {
+// Register endpoint
+router.post('/register', async (req, res) => {
   try {
     const { email, password, name } = registerSchema.parse(req.body)
 
@@ -162,44 +105,60 @@ router.post('/register', async (req, res, next) => {
     res.status(201).json(result.rows[0])
   } catch (err) {
     if (err.code === '23505') {
-      // Unique violation
-      return res.status(400).json({ error: 'Email already registered' })
+      // unique_violation
+      return res.status(409).json({ error: 'Email already exists' })
     }
-    next(err)
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input' })
+    }
+    console.error('Register error:', err)
+    res.status(500).json({ error: 'Server error' })
   }
 })
 
-router.post('/change-password', async (req, res, next) => {
+// Change password endpoint
+router.post('/change-password', async (req, res) => {
   try {
-    const { currentPassword, newPassword } = changePasswordSchema.parse(
-      req.body
-    )
+    const { currentPassword, newPassword } = req.body
 
-    const user = await pool.query('SELECT * FROM users WHERE id = $1', [
-      req.user.id,
+    // Get user from token
+    const token = req.headers.authorization?.split(' ')[1]
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication required' })
+    }
+
+    const decoded = jwt.verify(token, config.jwtSecret)
+
+    // Get user from database
+    const result = await pool.query('SELECT * FROM users WHERE id = $1', [
+      decoded.id,
     ])
 
-    if (!user.rows[0]) {
+    const user = result.rows[0]
+    if (!user) {
       return res.status(404).json({ error: 'User not found' })
     }
 
+    // Verify current password
     const validPassword = await bcrypt.compare(
       currentPassword,
-      user.rows[0].password_hash
+      user.password_hash
     )
     if (!validPassword) {
       return res.status(401).json({ error: 'Current password is incorrect' })
     }
 
+    // Update password
     const hashedPassword = await bcrypt.hash(newPassword, 10)
     await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [
       hashedPassword,
-      req.user.id,
+      user.id,
     ])
 
     res.json({ message: 'Password updated successfully' })
   } catch (err) {
-    next(err)
+    console.error('Change password error:', err)
+    res.status(500).json({ error: 'Failed to change password' })
   }
 })
 
