@@ -7,16 +7,22 @@ export function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
     try {
       await login(email, password);
       navigate('/');
-    } catch (err) {
-      setError('Invalid credentials');
+    } catch (err: any) {
+      setError(err.error || 'Invalid credentials');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -49,6 +55,7 @@ export function LoginForm() {
                 placeholder="Email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
               />
             </div>
             <div>
@@ -65,6 +72,7 @@ export function LoginForm() {
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
               />
             </div>
           </div>
@@ -72,12 +80,13 @@ export function LoginForm() {
           <div>
             <button
               type="submit"
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              disabled={isLoading}
             >
               <span className="absolute left-0 inset-y-0 flex items-center pl-3">
                 <LogIn className="h-5 w-5 text-blue-500 group-hover:text-blue-400" />
               </span>
-              Sign in
+              {isLoading ? 'Signing in...' : 'Sign in'}
             </button>
           </div>
         </form>

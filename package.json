@@ -8,8 +8,9 @@
     "build": "tsc && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "server": "node --watch server/index.js",
     "start": "node server/index.js",
-    "server": "node --watch server/index.js"
+    "db:init": "node server/migrations/init.js"
   },
   "engines": {
     "node": ">=18.0.0"
