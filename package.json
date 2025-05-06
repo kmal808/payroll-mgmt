@@ -30,7 +30,7 @@
     "pg": "^8.11.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.22.3",
+    "react-router-dom": "^6.30.0",
     "sharp": "^0.33.2",
     "uuid": "^9.0.1",
     "zod": "^3.22.4"
